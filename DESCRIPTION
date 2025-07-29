@@ -1,0 +1,11 @@
+Package: MultilevelNIRA
+Title: Multilevel Ising Network Modeling and Multilevel NIRA Intervention Analysis
+Version: 0.0.0.9000
+Authors@R: 
+    person("Yiming", "Wu", , "ywu6888@gmail.com", role = c("aut", "cre"))
+Description: Provides tools to fit multilevel Ising network models using penalized likelihood, extract fixed and random thresholds,
+  simulate intervention responses (NIRA), and assess network stability via bootstrap methods.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
