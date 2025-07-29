@@ -11,7 +11,7 @@
 #' @author Written by Wu Yiming 2025/07/29
 #' MultilevelNIRA
 #' School of Psychology, South China Normal University
-
+#' @export
 Thresholds_select <- function(fit,
                               type  = c("random", "fixed"),
                               group = NULL,
