@@ -14,3 +14,17 @@
 #' @name MulNIRAdata
 #' @usage data(MulNIRAdata)
 NULL
+.onAttach <- function(libname, pkgname) {
+  msg <- paste0(
+    crayon::blue("     ／＞　 フ\n"),
+    crayon::blue("    | 　_　_| "), crayon::green("Meow! 🐾\n"),
+    crayon::blue("  ／` ミ＿xノ  "), crayon::magenta("MultilevelNIRA loaded!\n"),
+    crayon::blue(" /　　　　 |   "), crayon::yellow("Installation complete 🎉\n"),
+    crayon::blue("/　 ヽ　　 ﾉ\n"),
+    crayon::blue("│　　|　|　|\n"),
+    crayon::blue("／￣|　　 |　|"), crayon::red("  Enjoy using it!\n"),
+    crayon::blue("`ー┴─┴─´")
+  )
+  packageStartupMessage(msg)
+}
+

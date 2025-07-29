@@ -6,6 +6,7 @@ Authors@R:
 Description: Provides tools to fit multilevel Ising network models using penalized likelihood, extract fixed and random thresholds,
   simulate intervention responses (NIRA), and assess network stability via bootstrap methods.
 License: MIT + file LICENSE
+Imports: crayon
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
