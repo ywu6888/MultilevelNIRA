@@ -1,3 +1,5 @@
+#' Multilevel Ising Network Modeling
+#'
 #' @param data A data frame or matrix where rows represent observations and columns represent binary (0/1) variables, each variable corresponding to a node.
 #' @param group.col A character vector specifying the name(s) of the grouping column(s) used to define the multilevel structure. Default is `c("city")`.
 #' @param rnd A list specifying the random-effects structure. Names of list elements correspond to grouping variables, and values are formulas (e.g., `~1`). Default is `list(city = ~1)`.
@@ -16,7 +18,6 @@
 #' @author Written by Wu Yiming 2025/07/29
 #' MultilevelNIRA
 #' School of Psychology, South China Normal University
-#' @email ywu6888@gmail.com
 #' @export
 Multilevel_Isingfit <- function(data,
                             group.col = c("city"),
@@ -39,19 +40,19 @@ Multilevel_Isingfit <- function(data,
   }
   library(glmmLasso)
   t0 <- Sys.time()
-  
+
   ##— Parameters & Data Validation —##
   if (family != "binomial") stop("Only binary (binomial) data is supported.")
   if (!is.data.frame(data)) stop("data must be a data.frame")
   if (!all(group.col %in% names(data))) {
-    stop(paste("Grouping variable columns not found:", 
+    stop(paste("Grouping variable columns not found:",
                paste(group.col[!group.col %in% names(data)], collapse = ", ")))
   }
   # Extract grouping and remove grouping columns
   group <- lapply(data[group.col], as.factor)
   x_df  <- data[, setdiff(names(data), group.col), drop = FALSE]
   if (any(is.na(x_df))) stop("Missing values are not supported.")
-  
+
   # Predictors must be binary 0/1
   for (j in seq_len(ncol(x_df))) {
     v <- x_df[[j]]
@@ -63,7 +64,7 @@ Multilevel_Isingfit <- function(data,
     stop("There are rows with sum < min_sum.")
   }
   x <- as.matrix(x_df)
-  
+
   # Keep variables with sufficient variance
   allowedNodes <- function(v) {
     tb <- table(v)
@@ -72,11 +73,11 @@ Multilevel_Isingfit <- function(data,
   keep <- apply(x, 2, allowedNodes)
   if (!any(keep)) stop("All variables have insufficient variance; cannot proceed.")
   x <- x[, keep, drop = FALSE]
-  
+
   ##— Basic Information —##
   nvar <- ncol(x)
   p    <- nvar - 1
-  
+
   ##— Preallocate Space for Random Effects —##
   num_groups <- length(group)
   intercepts <- vector("list", nvar)
@@ -88,7 +89,7 @@ Multilevel_Isingfit <- function(data,
   N_vec      <- numeric(nvar)
   randomsIn          <- vector("list", num_groups)
   randomsIntercept   <- vector("list", num_groups)
-  
+
   for (i in seq_len(nvar)) {
     intercepts[[i]] <- numeric(nlambda)
     betas[[i]]      <- matrix(NA, nrow = nlambda, ncol = nvar-1)
@@ -98,19 +99,19 @@ Multilevel_Isingfit <- function(data,
     randomsIn[[g]]        <- lapply(seq_len(nvar), function(i) matrix(NA, nrow = nlambda, ncol = G))
     randomsIntercept[[g]] <- lapply(seq_len(nvar), function(i) numeric(G))
   }
-  
+
   if (progressbar) pb <- txtProgressBar(min = 0, max = nvar, style = 3)
-  
+
   ##— Main Loop: Modeling for each node i —##
   for (i in seq_len(nvar)) {
     y  <- x[, i]
     Xi <- x[, -i, drop = FALSE]
     N_i <- length(y)
     N_vec[i] <- N_i
-    
+
     df <- data.frame(y = y, as.data.frame(Xi), as.data.frame(group))
     covariates <- colnames(Xi)
-    
+
     # —— Automatically generate lambda_grid —— #
     if (is.null(lambda_grid)) {
       null_fit <- lme4::glmer(
@@ -120,7 +121,7 @@ Multilevel_Isingfit <- function(data,
       )
       mu0 <- as.vector(fitted(null_fit))
       w   <- mu0 * (1 - mu0)
-      
+
       # compute grads & lambda_grid
       res    <- y - mu0
       grads  <- abs(colSums(Xi * (w * res)))
@@ -135,18 +136,18 @@ Multilevel_Isingfit <- function(data,
     if (length(my_lambda_grid) != nlambda) {
       nlambda <- length(my_lambda_grid)
     }
-    
+
     if (progressbar) {
       cat(sprintf("\nNode %d: lambda sequence from %.3g to %.3g, %d points\n",
                   i, max(my_lambda_grid), min(my_lambda_grid), length(my_lambda_grid)))
     }
-    
+
     # Within-cluster centering
     cluster_id <- interaction(df[group.col], drop = TRUE)
     for (v in covariates) {
       df[[v]] <- df[[v]] - ave(df[[v]], cluster_id)
     }
-    
+
     for (j in seq_along(my_lambda_grid)) {
       lam <- my_lambda_grid[j]
       fit <- glmmLasso::glmmLasso(
@@ -161,7 +162,7 @@ Multilevel_Isingfit <- function(data,
       coefs <- fit$coeff
       intercepts[[i]][j] <- coefs["(Intercept)"]
       betas[[i]][j, ]    <- coefs[covariates]
-      
+
       # random effects
       ran <- fit$ranef
       for (g in seq_len(num_groups)) {
@@ -169,37 +170,37 @@ Multilevel_Isingfit <- function(data,
         grp_names <- paste0(group.col[g], 1:G)
         randomsIn[[g]][[i]][j, ] <- ran[grp_names]
       }
-      
+
       # save original logLik
       logLik_mat[j, i] <- as.numeric(fit$loglik)
-      
+
       # new: compute and save penalized log-likelihood
       L0     <- as.numeric(fit$loglik)
       beta_p <- coefs[-1]  # drop intercept
       logLik_pen_mat[j, i] <- L0 - lam * sum(abs(beta_p))
-      
+
       J_mat[j, i] <- sum(coefs[covariates] != 0)
-      
+
       if (progressbar && (j %% 10 == 0)) {
         cat(sprintf("  lambda=%.3g → J=%d, logLik=%.2f, penLL=%.2f\n",
                     lam, J_mat[j,i], logLik_mat[j,i], logLik_pen_mat[j,i]))
       }
     }
-    
+
     # compute EBIC
     penalty        <- J_mat[, i] * log(N_i) + 2 * gamma * J_mat[, i] * log(p)
     EBIC_mat[, i]  <- -2 * logLik_pen_mat[, i] + penalty
-    
+
     if (progressbar) setTxtProgressBar(pb, i)
   }
   if (progressbar) close(pb)
-  
+
   ##— Select optimal λ and assemble network —##
   lambda_idx <- apply(EBIC_mat, 2, which.min)
   lambda_opt <- sapply(seq_len(nvar), function(i) {
     if (is.null(lambda_grid)) my_lambda_grid[lambda_idx[i]] else lambda_grid[lambda_idx[i]]
   })
-  
+
   weights    <- matrix(0, nrow = nvar, ncol = nvar)
   thresholds <- numeric(nvar)
   EBIC_best  <- numeric(nvar)
@@ -212,7 +213,7 @@ Multilevel_Isingfit <- function(data,
       randomsIntercept[[g]][[i]] <- randomsIn[[g]][[i]][idx,]
     }
   }
-  
+
   symmetrize_matrix <- function(W, AND = TRUE) {
     n <- nrow(W)
     Wf <- W
@@ -230,11 +231,11 @@ Multilevel_Isingfit <- function(data,
     Wf
   }
   W_final <- symmetrize_matrix(weights, AND = AND)
-  
+
   # Plotting
   doPlot <- !identical(plot, FALSE)
   qobj   <- qgraph::qgraph(W_final, layout = "spring", DoNotPlot = !doPlot, ...)
-  
+
   # Return results
   Res <- list(
     weiadj           = W_final,
@@ -253,9 +254,3 @@ Multilevel_Isingfit <- function(data,
   return(Res)
 }
 
-# If needed, you can define an S3 plot method
-plot.bootnet_ml <- function(x, ...) {
-  if (!inherits(x, "IsingFit_ml"))
-    stop("Object is not of class IsingFit_ml!")
-  qgraph::qgraph(x$q, DoNotPlot = FALSE, ...)
-}
